@@ -9,6 +9,7 @@
 //! mirror `layout.rs` exactly. Otherwise `render` may lay the frame out
 //! however the language needs.
 
+pub mod c;
 pub mod javascript;
 pub mod layout;
 pub mod lua;
@@ -75,6 +76,7 @@ pub fn all() -> &'static [&'static dyn Language] {
         &javascript::JavaScript,
         &lua::Lua,
         &scheme::Scheme,
+        &c::C,
     ]
 }
 
