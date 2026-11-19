@@ -138,3 +138,18 @@ Lua needs spaces between keywords and names, so the body is written to need
 none: every condition is parenthesised and a `;` follows each `do`, `then`
 and `end`. It does the same scoring, ranking and layout as the Ruby body.
 Needs Lua 5.3 or later. Walkthrough: [docs/lua.md](docs/lua.md).
+
+### Scheme
+
+```scheme
+(define(s)(string-filter char-set:graphic" ... "))(eval-string(s))
+```
+
+Runs on GNU Guile 3 (`brew install guile`). `(s)` returns the string with
+its whitespace filtered out. Scheme needs spaces between atoms, so the body
+is a short whitespace-free bootstrap followed by the real program inside a
+`#|...|#` comment, with each of its spaces written as `_`. The bootstrap cuts
+the program out of `(s)`, turns `_` back into spaces and evaluates it. That
+program does the same scoring, ranking and layout as the Ruby body. It is
+about 1,800 characters, so it needs a panel of at least 2,100 cells.
+Walkthrough: [docs/scheme.md](docs/scheme.md).

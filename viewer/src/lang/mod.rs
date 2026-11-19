@@ -14,6 +14,7 @@ pub mod layout;
 pub mod lua;
 pub mod perl;
 pub mod ruby;
+pub mod scheme;
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -68,7 +69,13 @@ pub trait Language: Send + Sync {
 }
 
 pub fn all() -> &'static [&'static dyn Language] {
-    &[&ruby::Ruby, &perl::Perl, &javascript::JavaScript, &lua::Lua]
+    &[
+        &ruby::Ruby,
+        &perl::Perl,
+        &javascript::JavaScript,
+        &lua::Lua,
+        &scheme::Scheme,
+    ]
 }
 
 /// Whether the language's tool can be started at all.
