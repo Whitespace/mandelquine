@@ -26,6 +26,7 @@ use lang::{Frame, Glyph, Language};
 use palette::PALETTES;
 
 const ZOOM_STEP: f64 = 1.25;
+const PAN_CELLS: f64 = 2.0;
 const MIN_SC: f64 = 1e-13;
 const MAX_SC: f64 = 0.25;
 const BG: Color = Color::Rgb(8, 8, 14);
@@ -223,8 +224,8 @@ impl App {
         }
 
         let Some(mut view) = self.view else { return };
-        // One cell per key press: a cell is sc wide and 2*sc tall.
-        let (sx, sy) = (view.sc, 2.0 * view.sc);
+        // PAN_CELLS cells per key press: a cell is sc wide and 2*sc tall.
+        let (sx, sy) = (PAN_CELLS * view.sc, PAN_CELLS * 2.0 * view.sc);
         match code {
             KeyCode::Char('w') => {
                 view.pan(0.0, sy);
