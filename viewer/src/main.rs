@@ -36,7 +36,7 @@ fn tidy(x: f64, unit: f64) -> f64 {
     if x == 0.0 {
         return 0.0;
     }
-    let digits = ((x.abs() / unit).log10().ceil() as i32 + 1).clamp(1, 16) as usize;
+    let digits = ((x.abs() / unit).log10().ceil() as i32 + 3).clamp(1, 16) as usize;
     let s = format!("{:.*e}", digits, x);
     let v: f64 = s.parse().unwrap();
     lang::ruby::literal(v).parse().unwrap()
@@ -183,14 +183,6 @@ impl App {
         self.fx.add_unique_effect("flash", e);
     }
 
-    fn nav_fx(&mut self, motion: Option<Motion>) {
-        let e = match motion {
-            Some(m) => fx::sweep_in(m, 12, 0, BG, (180, Interpolation::QuadOut)),
-            None => fx::fade_from_fg(BG, (220, Interpolation::QuadOut)),
-        };
-        self.fx.add_unique_effect("nav", e.with_area(self.panel));
-    }
-
     fn handle_key(&mut self, code: KeyCode, mods: KeyModifiers) {
         if mods.contains(KeyModifiers::CONTROL) && matches!(code, KeyCode::Char('c')) {
             self.quit = true;
@@ -231,42 +223,28 @@ impl App {
         }
 
         let Some(mut view) = self.view else { return };
-        let (w, h) = self
-            .frame()
-            .map(|f| (f.params.w, f.params.h))
-            .unwrap_or((80, 24));
-        let (sx, sy) = (
-            (w / 8).max(1) as f64 * view.sc,
-            (h / 6).max(1) as f64 * 2.0 * view.sc,
-        );
+        // One cell per key press: a cell is sc wide and 2*sc tall.
+        let (sx, sy) = (view.sc, 2.0 * view.sc);
         match code {
             KeyCode::Char('w') => {
                 view.pan(0.0, sy);
-                self.nav_fx(Some(Motion::UpToDown));
             }
             KeyCode::Char('s') => {
                 view.pan(0.0, -sy);
-                self.nav_fx(Some(Motion::DownToUp));
             }
             KeyCode::Char('a') => {
                 view.pan(-sx, 0.0);
-                self.nav_fx(Some(Motion::LeftToRight));
             }
             KeyCode::Char('d') => {
                 view.pan(sx, 0.0);
-                self.nav_fx(Some(Motion::RightToLeft));
             }
             KeyCode::Char('e') => {
-                if view.zoom(1.0 / ZOOM_STEP) {
-                    self.nav_fx(None);
-                } else {
+                if !view.zoom(1.0 / ZOOM_STEP) {
                     self.toast("f64 precision limit: can't zoom further", Color::LightRed);
                 }
             }
             KeyCode::Char('q') => {
-                if view.zoom(ZOOM_STEP) {
-                    self.nav_fx(None);
-                }
+                view.zoom(ZOOM_STEP);
             }
             KeyCode::Char('r') => {
                 self.view = None;
@@ -314,9 +292,19 @@ impl App {
                     Color::Gray,
                 );
             }
-            KeyCode::Char('c') => self.copy(),
-            KeyCode::Char('x') => self.export(),
-            KeyCode::Char('v') => self.verify(),
+            // These act on the frame, so make sure it reflects any moves
+            // queued ahead of them in the same batch of input.
+            KeyCode::Char('c') | KeyCode::Char('x') | KeyCode::Char('v') => {
+                self.view = Some(view);
+                if let Some((_, _, w, h, _)) = self.rendered {
+                    self.refresh(w, h);
+                }
+                match code {
+                    KeyCode::Char('c') => self.copy(),
+                    KeyCode::Char('x') => self.export(),
+                    _ => self.verify(),
+                }
+            }
             KeyCode::Char('?') | KeyCode::Char('h') => self.mode = Mode::Help,
             KeyCode::Esc => self.quit = true,
             _ => {}
@@ -781,7 +769,11 @@ fn run(term: &mut DefaultTerminal) -> std::io::Result<()> {
             out.flush()?;
         }
 
-        if event::poll(Duration::from_millis(33))? {
+        // Wait up to a frame for input, then take everything that is queued
+        // so a held key never lags behind the redraw.
+        let mut wait = Duration::from_millis(33);
+        while event::poll(wait)? {
+            wait = Duration::ZERO;
             if let Event::Key(k) = event::read()? {
                 if k.kind == KeyEventKind::Press {
                     let code = match k.code {
