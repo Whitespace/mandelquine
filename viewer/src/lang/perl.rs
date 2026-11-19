@@ -21,8 +21,8 @@ impl Language for Perl {
     fn extension(&self) -> &'static str {
         "pl"
     }
-    fn interpreter(&self) -> &'static [&'static str] {
-        &["perl"]
+    fn tool(&self) -> &'static str {
+        "perl"
     }
     fn render(&self, p: &Params) -> Result<Frame, String> {
         layout::render(p, layout::fill(TEMPLATE, p), HEAD, TAIL)

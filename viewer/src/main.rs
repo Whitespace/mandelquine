@@ -109,7 +109,7 @@ enum Verdict {
 }
 
 struct App {
-    langs: Vec<Box<dyn Language>>,
+    langs: &'static [&'static dyn Language],
     lang: usize,
     view: Option<View>,
     frame: Option<Result<Frame, String>>,
@@ -157,8 +157,8 @@ impl App {
         }
     }
 
-    fn language(&self) -> &dyn Language {
-        self.langs[self.lang].as_ref()
+    fn language(&self) -> &'static dyn Language {
+        self.langs[self.lang]
     }
 
     fn toast(&mut self, msg: impl Into<String>, color: Color) {
@@ -344,37 +344,10 @@ impl App {
     fn verify(&mut self) {
         let Some(f) = self.frame() else { return };
         let (params, text) = (f.params, f.text.clone());
-        let cmd: Vec<String> = self
-            .language()
-            .interpreter()
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-        let ext = self.language().extension();
-        let path =
-            std::env::temp_dir().join(format!("mandelview-verify-{}.{ext}", std::process::id()));
+        let lang = self.language();
         let (tx, rx) = channel();
         std::thread::spawn(move || {
-            let result = (|| {
-                std::fs::write(&path, &text).map_err(|e| e.to_string())?;
-                let out = std::process::Command::new(&cmd[0])
-                    .args(&cmd[1..])
-                    .arg(&path)
-                    .output()
-                    .map_err(|e| format!("couldn't run {}: {e}", cmd[0]))?;
-                let _ = std::fs::remove_file(&path);
-                if !out.status.success() {
-                    return Err(String::from_utf8_lossy(&out.stderr)
-                        .lines()
-                        .next()
-                        .unwrap_or("failed")
-                        .to_string());
-                }
-                if out.stdout != text.as_bytes() {
-                    return Err("output differs from the frame".into());
-                }
-                Ok(())
-            })();
+            let result = lang::verify(lang, &text);
             let _ = tx.send((params, result));
         });
         self.verdict = Some(Verdict::Pending(params));
@@ -563,11 +536,7 @@ fn draw(app: &mut App, f: &mut TuiFrame, elapsed: Duration) {
             Some(Verdict::Pending(p)) if *p == fr.params => {
                 let i = (app.phase * 400.0) as usize % spin.len();
                 Span::styled(
-                    format!(
-                        "{} verifying with {}",
-                        spin[i],
-                        app.language().interpreter()[0]
-                    ),
+                    format!("{} verifying with {}", spin[i], app.language().tool()),
                     Style::new().fg(Color::Yellow),
                 )
             }
@@ -867,24 +836,20 @@ mod tests {
         }
     }
 
+    /// Runs frames of every language through its tool and checks each prints
+    /// itself. A language is skipped when its tool isn't on PATH.
     #[test]
-    fn ruby_frames_are_fixed_points() {
-        frames_are_fixed_points(&lang::ruby::Ruby);
-    }
-
-    #[test]
-    fn perl_frames_are_fixed_points() {
-        frames_are_fixed_points(&lang::perl::Perl);
-    }
-
-    /// Runs frames through the language's interpreter and checks each prints
-    /// itself. Skipped when the interpreter isn't on PATH.
-    fn frames_are_fixed_points(lang: &dyn Language) {
-        let cmd = lang.interpreter()[0];
-        if std::process::Command::new(cmd).arg("-v").output().is_err() {
-            eprintln!("{cmd} not found, skipping");
-            return;
+    fn frames_are_fixed_points() {
+        for &lang in lang::all() {
+            if lang::available(lang) {
+                fixed_points(lang);
+            } else {
+                eprintln!("{} not found, skipping {}", lang.tool(), lang.name());
+            }
         }
+    }
+
+    fn fixed_points(lang: &dyn Language) {
         let mut views = vec![
             (110, 48, View::classic(110, 48)),
             (200, 60, View::classic(200, 60)),
@@ -911,28 +876,12 @@ mod tests {
         };
         deep.zoom(2e-9);
         views.push((90, 30, deep));
-        let dir = std::env::temp_dir();
         for (i, (w, h, view)) in views.into_iter().enumerate() {
             for outside in [false, true] {
                 let frame = lang.render(&view.params(w, h, outside)).expect("layout");
-                let path = dir.join(format!(
-                    "mandelview-test-{}-{i}.{}",
-                    std::process::id(),
-                    lang.extension()
-                ));
-                std::fs::write(&path, &frame.text).unwrap();
-                let out = std::process::Command::new(cmd).arg(&path).output().unwrap();
-                let _ = std::fs::remove_file(&path);
-                assert!(
-                    out.status.success(),
-                    "frame {i} failed: {}",
-                    String::from_utf8_lossy(&out.stderr)
-                );
-                assert_eq!(
-                    String::from_utf8_lossy(&out.stdout),
-                    frame.text,
-                    "frame {i} is not a fixed point"
-                );
+                if let Err(e) = lang::verify(lang, &frame.text) {
+                    panic!("{} frame {i} outside={outside}: {e}", lang.name());
+                }
             }
         }
     }

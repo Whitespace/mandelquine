@@ -21,8 +21,8 @@ impl Language for Ruby {
     fn extension(&self) -> &'static str {
         "rb"
     }
-    fn interpreter(&self) -> &'static [&'static str] {
-        &["ruby"]
+    fn tool(&self) -> &'static str {
+        "ruby"
     }
     fn render(&self, p: &Params) -> Result<Frame, String> {
         layout::render(p, layout::fill(TEMPLATE, p), HEAD, TAIL)
