@@ -89,9 +89,8 @@ impl Language for C {
         let r0 = e.iter().rposition(|&c| c == b'"').unwrap();
         // No break between `Q` and `(` in the directive, or Q would be an
         // object-like macro. The body hard-codes that index as 12.
-        let brk = |k: usize| {
-            k == 0 || (k > b0 && k <= r0) || (k != 12 && class(e[k - 1]) != class(e[k]))
-        };
+        let brk =
+            |k: usize| k == 0 || (k > b0 && k <= r0) || (k != 12 && class(e[k - 1]) != class(e[k]));
         let splice = |k: usize| (k > 0 && k < a0) || (k > b0 && k <= r0);
 
         let v = escape_grid(p);

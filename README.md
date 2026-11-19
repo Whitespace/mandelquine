@@ -153,3 +153,19 @@ the program out of `(s)`, turns `_` back into spaces and evaluates it. That
 program does the same scoring, ranking and layout as the Ruby body. It is
 about 1,800 characters, so it needs a panel of at least 2,100 cells.
 Walkthrough: [docs/scheme.md](docs/scheme.md).
+
+### C
+
+```c
+#define Q(...)char*s=#__VA_ARGS__;__VA_ARGS__
+Q( ... )
+```
+
+The macro compiles the body and also stringifies it into `s`, and since
+stringifying turns any run of whitespace between tokens into one space, the
+program recovers its own source by dropping the spaces. C can't take
+whitespace inside a token, so the layout is token-aware: a token only starts
+in a run of cells long enough to hold it, and the `#define` line and the one
+string literal end their rows in a `\` line splice. The V check compiles with
+`cc -O2`. The program is about 1.8k characters, so C needs a frame of at
+least 2000 cells. Walkthrough: [docs/c.md](docs/c.md).
