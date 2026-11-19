@@ -30,6 +30,8 @@ const PAN_CELLS: f64 = 2.0;
 const MIN_SC: f64 = 1e-13;
 const MAX_SC: f64 = 0.25;
 const BG: Color = Color::Rgb(8, 8, 14);
+/// Code lying inside the set: dark grey on the near-black interior.
+const INSIDE_FG: Color = Color::Rgb(105, 105, 105);
 
 /// Round `x` to the fewest significant digits that still resolve `unit`, and
 /// return the value the generated program will parse back.
@@ -140,8 +142,8 @@ impl App {
             rendered: None,
             palette: 0,
             phase: 0.0,
-            animate: true,
-            outside: false,
+            animate: false,
+            outside: true,
             background: true,
             mode: Mode::View,
             toast: None,
@@ -435,11 +437,7 @@ impl Widget for FrameWidget<'_> {
                         ));
                     }
                     Glyph::Code(c) if inside => {
-                        let shimmer = ph * 1.5 + (x as f64 * 0.013 + y as f64 * 0.031);
-                        cell.set_char(c)
-                            .set_fg(p.color(shimmer, 1.0, 0.35))
-                            .set_bg(BG)
-                            .set_style(Style::new().add_modifier(Modifier::BOLD));
+                        cell.set_char(c).set_fg(INSIDE_FG).set_bg(BG);
                     }
                     Glyph::Code(c) => {
                         cell.set_char(c)
@@ -805,7 +803,7 @@ fn cli(arg: &str) -> std::io::Result<()> {
             let w = args.first().and_then(|s| s.parse().ok()).unwrap_or(110);
             let h = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(48);
             let view = View::classic(w, h);
-            match lang::ruby::Ruby.render(&view.params(w, h, false)) {
+            match lang::ruby::Ruby.render(&view.params(w, h, true)) {
                 Ok(f) => print!("{}", f.text),
                 Err(e) => eprintln!("{e}"),
             }
