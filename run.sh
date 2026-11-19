@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the quine forever: each generation's output becomes the next program.
-# Ctrl-C to stop. Generation 60 is byte-identical to mandelquine.rb.
+# Ctrl-C to stop. Generation 120 is byte-identical to mandelquine.rb.
 set -euo pipefail
 cd "$(dirname "$0")"
 

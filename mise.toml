@@ -1,2 +1,14 @@
 [tools]
 ruby = "3.3"
+
+[tasks.quine]
+description = "Run the quine in a loop, each generation feeding the next"
+run = "./run.sh"
+
+[tasks.build]
+description = "Build mandelquine.rb from src/body.rb and verify the cycle closes"
+run = "ruby src/build.rb"
+
+[tasks.cast]
+description = "Record one cycle as mandelquine.cast and mandelquine.svg"
+run = "ruby src/cast.rb"

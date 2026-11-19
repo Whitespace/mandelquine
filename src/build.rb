@@ -1,14 +1,13 @@
 #!/usr/bin/env ruby
-# Builds mandelquine.rb from src/body.rb, verifies one full cycle, and writes
-# mandelquine.cast. Run from anywhere: `ruby src/build.rb`.
-require "json"
+# Builds mandelquine.rb from src/body.rb and verifies one full cycle.
+# Run from anywhere: `ruby src/build.rb`.
 require "open3"
 require "rbconfig"
 require "fileutils"
 
 ROOT   = File.expand_path("..", __dir__)
 TMP    = File.join(ROOT, "tmp")
-CYCLE  = 60
+CYCLE  = 120
 WIDTH  = 110
 HEIGHT = 48
 HEAD   = "eval(s=%w("
@@ -61,26 +60,3 @@ puts "generations padded with a comment: #{padded.empty? ? 'none' : padded.join(
 
 File.write(File.join(ROOT, "mandelquine.rb"), gens[0])
 puts "wrote mandelquine.rb"
-
-# asciicast v2: show generation 0, type the command, then play one cycle.
-events = []
-clock = 0.0
-emit = lambda do |data, pause|
-  events << [clock.round(3), "o", data]
-  clock += pause
-end
-screen = ->(text) { text.chomp.gsub("\n", "\r\n") }
-
-emit.("\e[2J\e[H\e[?25l", 0)
-emit.("$ cat mandelquine.rb\r\n", 0.6)
-emit.(screen.(gens[0]), 2.5)
-emit.("\e[2J\e[H$ ", 0.4)
-"./run.sh".each_char { |ch| emit.(ch, 0.05) }
-emit.("\r\n", 0.6)
-gens.drop(1).each { |text| emit.("\e[H\e[2J" + screen.(text), 0.12) }
-clock += 2.0
-emit.("\e[?25h", 0)
-
-header = { version: 2, width: WIDTH, height: HEIGHT + 1, title: "mandelquine" }
-File.write(File.join(ROOT, "mandelquine.cast"), ([header] + events).map { |row| JSON.generate(row) }.join("\n") + "\n")
-puts "wrote mandelquine.cast (#{clock.round(1)}s)"
