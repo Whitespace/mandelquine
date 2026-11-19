@@ -53,6 +53,8 @@ only for the V check.
 | W A S D | pan |
 | Q / E | zoom out / in |
 | L | quine language (Ruby only so far) |
+| O | put the code inside or outside the set |
+| B | background gradient on / off |
 | P, Space | palette, toggle colour cycling |
 | C, X | copy the frame (OSC 52), save it to `./mandelquine-<time>.rb` |
 | V | run the frame with `ruby` and check it prints itself |
@@ -60,7 +62,8 @@ only for the V check.
 
 Every frame is a program that prints itself, not the next zoom step. Its
 first statements are the frame size, iteration count, centre and scale as
-literals, so the view is the program's own state. The viewer computes the
+literals, plus a flag for inside/outside placement, so the view is the
+program's own state. The viewer computes the
 layout natively in Rust (`viewer/src/lang/ruby.rs`) using the same
 arithmetic, in the same order, as the Ruby body (`viewer/src/lang/ruby.rb`),
 which is what makes the two agree byte for byte. Scores are integer escape

@@ -17,21 +17,35 @@ pub struct Params {
     pub x0: f64,
     pub y0: f64,
     pub sc: f64,
+    /// Place the code outside the set (nearest cells first) instead of
+    /// inside it.
+    pub outside: bool,
 }
 
 /// For each of the w*h cells, the sum over a 2x2 supersample of the escape
 /// iteration (1..=m), or 2m for a sample that never escapes. A cell whose four
 /// samples are all inside has the value 8m.
 pub fn escape_grid(p: &Params) -> Vec<u32> {
-    let Params { w, h, m, x0, y0, sc } = *p;
+    let Params {
+        w,
+        h,
+        m,
+        x0,
+        y0,
+        sc,
+        ..
+    } = *p;
     (0..w * h)
         .into_par_iter()
         .map(|j| {
             let mut a = 0u32;
             for q in 0..4usize {
-                let cr = x0 + ((((j % w) as f64 + (q % 2) as f64 * 0.5) + 0.25) - w as f64 * 0.5) * sc;
+                let cr =
+                    x0 + ((((j % w) as f64 + (q % 2) as f64 * 0.5) + 0.25) - w as f64 * 0.5) * sc;
                 let ci = y0
-                    + ((((h as f64 * 0.5) - (j / w) as f64) - (q / 2) as f64 * 0.5) - 0.25) * 2.0 * sc;
+                    + ((((h as f64 * 0.5) - (j / w) as f64) - (q / 2) as f64 * 0.5) - 0.25)
+                        * 2.0
+                        * sc;
                 let (mut x, mut y) = (0.0f64, 0.0f64);
                 let mut esc = None;
                 for i in 1..=m {

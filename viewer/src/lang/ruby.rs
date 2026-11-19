@@ -30,6 +30,7 @@ fn body(p: &Params) -> String {
         .replacen("X0", &literal(p.x0), 1)
         .replacen("Y0", &literal(p.y0), 1)
         .replacen("SC", &literal(p.sc), 1)
+        .replacen("U", if p.outside { "1" } else { "0" }, 1)
 }
 
 impl Language for Ruby {
@@ -63,7 +64,10 @@ impl Language for Ruby {
         // that isn't interior, with a vertical step costing 2 because cells
         // are about twice as tall as wide. Two chamfer passes, as in ruby.rb.
         let far = n as i64;
-        let mut d: Vec<i64> = v.iter().map(|&z| if z < 8 * p.m { 0 } else { far }).collect();
+        let mut d: Vec<i64> = v
+            .iter()
+            .map(|&z| if z < 8 * p.m { 0 } else { far })
+            .collect();
         let (wi, ni) = (w as i64, n as i64);
         for k in [1i64, -1] {
             for i in 0..ni {
@@ -78,57 +82,57 @@ impl Language for Ruby {
             }
         }
 
-        // o=(0...w*h).sort_by{|j|[-v[j],d[j],j]}: interior first, and within
-        // the interior the cells nearest its edge, so the code draws the
-        // outline and the middle stays empty.
+        // o=(0...w*h).sort_by{|j|[-v[j]*(1-v[j]/(8*m)*u),d[j],j]}
+        // With u=0 the interior ranks first, and within it the cells nearest
+        // its edge, so the code draws the outline and the middle stays empty.
+        // With u=1 the interior's score becomes 0, which ranks it last, so the
+        // code sits in the exterior cells closest to the set.
         let mut o: Vec<usize> = (0..n).collect();
-        o.sort_unstable_by_key(|&j| (std::cmp::Reverse(v[j]), d[j], j));
+        let (m8, u) = (8 * p.m as i64, p.outside as i64);
+        o.sort_unstable_by_key(|&j| (-(v[j] as i64) * (1 - v[j] as i64 / m8 * u), d[j], j));
 
         let l = t.len() + HEAD.len() + TAIL.len();
-        let mut pp = l;
 
-        let mut g = vec![false; n];
-        let (mut a, mut b) = (0usize, 0usize);
-        let lay = |q: usize, g: &mut Vec<bool>, a: &mut usize, b: &mut usize| -> usize {
-            g.iter_mut().for_each(|c| *c = false);
-            for &j in o.iter().take(q) {
-                g[j] = true;
-            }
-            let first = g.iter().position(|&c| c).unwrap();
-            *a = first.min(first / w * w + w - 10);
-            for d in 0..10 {
-                g[*a + d] = true;
-            }
-            let last = g.iter().rposition(|&c| c).unwrap();
-            *b = last.max(last / w * w + 4);
-            for d in 0..5 {
-                g[*b - d] = true;
-            }
-            g.iter().filter(|&&c| c).count()
-        };
-        let mut c = lay(pp, &mut g, &mut a, &mut b);
-        while c > l {
-            if pp <= 1 {
-                return Err("could not place the program".into());
-            }
-            pp -= 1;
-            c = lay(pp, &mut g, &mut a, &mut b);
+        // Take the l best cells, then pin the wrapper's two unbreakable ends:
+        // `eval(s=%w(` on the first 10 cells and `)*"")` on the last 5, each
+        // kept on one row (g = 2). That can add up to 15 cells, so drop the
+        // same number of the worst-ranked unpinned ones.
+        let mut g = vec![0u8; n];
+        for &j in o.iter().take(l) {
+            g[j] = 1;
         }
-        for &j in &o {
-            if c < l && !g[j] && j > a && j < b {
-                g[j] = true;
-                c += 1;
+        let first = g.iter().position(|&c| c == 1).unwrap();
+        let a = first.min(first / w * w + w - 10);
+        for i in 0..10 {
+            g[a + i] = 2;
+        }
+        let last = g
+            .iter()
+            .rposition(|&c| c == 1)
+            .ok_or("frame too small for the program")?;
+        let b = last.max(last / w * w + 4);
+        if b < a + 14 {
+            return Err("frame too small for the program".into());
+        }
+        for i in 0..5 {
+            g[b - i] = 2;
+        }
+        let mut c = g.iter().filter(|&&c| c > 0).count();
+        for &j in o.iter().take(l).rev() {
+            if c > l && g[j] == 1 {
+                g[j] = 0;
+                c -= 1;
             }
         }
         if c != l {
-            return Err("could not find room for the program".into());
+            return Err("could not place the program".into());
         }
 
         let e: Vec<u8> = [HEAD.as_bytes(), tb, TAIL.as_bytes()].concat();
         let mut glyphs = vec![Glyph::Empty; n];
         let mut k = 0;
         for (j, cell) in g.iter().enumerate() {
-            if *cell {
+            if *cell > 0 {
                 glyphs[j] = Glyph::Code(e[k] as char);
                 k += 1;
             }
@@ -147,6 +151,12 @@ impl Language for Ruby {
             text.push('\n');
         }
 
-        Ok(Frame { params: *p, text, glyphs, value: v, code_len: l })
+        Ok(Frame {
+            params: *p,
+            text,
+            glyphs,
+            value: v,
+            code_len: l,
+        })
     }
 }

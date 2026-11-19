@@ -15,7 +15,9 @@ use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Paragraph, Widget, Wrap};
+use ratatui::widgets::{
+    Block, BorderType, Clear, List, ListItem, ListState, Paragraph, Widget, Wrap,
+};
 use ratatui::{DefaultTerminal, Frame as TuiFrame};
 use tachyonfx::{EffectManager, Interpolation, Motion, fx};
 
@@ -51,7 +53,11 @@ impl View {
     fn classic(w: usize, h: usize) -> Self {
         let sc = (3.4 / w as f64).max(2.45 / (2.0 * h as f64));
         let sc: f64 = format!("{sc:.2e}").parse().unwrap();
-        View { cx: -0.75, cy: 0.0, sc }
+        View {
+            cx: -0.75,
+            cy: 0.0,
+            sc,
+        }
     }
 
     fn iterations(&self) -> u32 {
@@ -59,8 +65,16 @@ impl View {
         (100.0 + 45.0 * depth).min(5000.0) as u32
     }
 
-    fn params(&self, w: usize, h: usize) -> Params {
-        Params { w, h, m: self.iterations(), x0: self.cx, y0: self.cy, sc: self.sc }
+    fn params(&self, w: usize, h: usize, outside: bool) -> Params {
+        Params {
+            w,
+            h,
+            m: self.iterations(),
+            x0: self.cx,
+            y0: self.cy,
+            sc: self.sc,
+            outside,
+        }
     }
 
     fn pan(&mut self, dx: f64, dy: f64) {
@@ -96,10 +110,14 @@ struct App {
     lang: usize,
     view: Option<View>,
     frame: Option<Result<Frame, String>>,
-    rendered: Option<(usize, View, usize, usize)>,
+    rendered: Option<(usize, View, usize, usize, bool)>,
     palette: usize,
     phase: f64,
     animate: bool,
+    /// Code goes outside the set instead of inside it.
+    outside: bool,
+    /// Paint the escape-time gradient behind the frame.
+    background: bool,
     mode: Mode,
     toast: Option<(String, Color, Instant)>,
     verdict: Option<Verdict>,
@@ -122,6 +140,8 @@ impl App {
             palette: 0,
             phase: 0.0,
             animate: true,
+            outside: false,
+            background: true,
             mode: Mode::View,
             toast: None,
             verdict: None,
@@ -149,12 +169,12 @@ impl App {
     /// Recompute the frame if the panel size, view or language changed.
     fn refresh(&mut self, w: usize, h: usize) {
         let view = *self.view.get_or_insert_with(|| View::classic(w, h));
-        let key = (self.lang, view, w, h);
+        let key = (self.lang, view, w, h, self.outside);
         if self.rendered == Some(key) {
             return;
         }
         self.rendered = Some(key);
-        let p = view.params(w, h);
+        let p = view.params(w, h, self.outside);
         self.frame = Some(self.language().render(&p));
     }
 
@@ -184,8 +204,12 @@ impl App {
             Mode::Languages(state) => {
                 let n = self.langs.len();
                 match code {
-                    KeyCode::Up | KeyCode::Char('w') => state.select(Some((state.selected().unwrap_or(0) + n - 1) % n)),
-                    KeyCode::Down | KeyCode::Char('s') => state.select(Some((state.selected().unwrap_or(0) + 1) % n)),
+                    KeyCode::Up | KeyCode::Char('w') => {
+                        state.select(Some((state.selected().unwrap_or(0) + n - 1) % n))
+                    }
+                    KeyCode::Down | KeyCode::Char('s') => {
+                        state.select(Some((state.selected().unwrap_or(0) + 1) % n))
+                    }
                     KeyCode::Enter => {
                         let pick = state.selected().unwrap_or(0);
                         self.mode = Mode::View;
@@ -207,8 +231,14 @@ impl App {
         }
 
         let Some(mut view) = self.view else { return };
-        let (w, h) = self.frame().map(|f| (f.params.w, f.params.h)).unwrap_or((80, 24));
-        let (sx, sy) = ((w / 8).max(1) as f64 * view.sc, (h / 6).max(1) as f64 * 2.0 * view.sc);
+        let (w, h) = self
+            .frame()
+            .map(|f| (f.params.w, f.params.h))
+            .unwrap_or((80, 24));
+        let (sx, sy) = (
+            (w / 8).max(1) as f64 * view.sc,
+            (h / 6).max(1) as f64 * 2.0 * view.sc,
+        );
         match code {
             KeyCode::Char('w') => {
                 view.pan(0.0, sy);
@@ -251,11 +281,39 @@ impl App {
             }
             KeyCode::Char('p') => {
                 self.palette = (self.palette + 1) % PALETTES.len();
-                let e = fx::hsl_shift_fg([120.0, 0.0, 0.0], (400, Interpolation::SineOut)).reversed();
+                let e =
+                    fx::hsl_shift_fg([120.0, 0.0, 0.0], (400, Interpolation::SineOut)).reversed();
                 self.fx.add_unique_effect("big", e.with_area(self.panel));
-                self.toast(format!("palette: {}", PALETTES[self.palette].name), Color::Gray);
+                self.toast(
+                    format!("palette: {}", PALETTES[self.palette].name),
+                    Color::Gray,
+                );
             }
             KeyCode::Char(' ') => self.animate = !self.animate,
+            KeyCode::Char('o') => {
+                self.outside = !self.outside;
+                let e = fx::coalesce((500, Interpolation::QuadOut)).with_area(self.panel);
+                self.fx.add_unique_effect("big", e);
+                self.toast(
+                    if self.outside {
+                        "code outside the set"
+                    } else {
+                        "code inside the set"
+                    },
+                    Color::Gray,
+                );
+            }
+            KeyCode::Char('b') => {
+                self.background = !self.background;
+                self.toast(
+                    if self.background {
+                        "background gradient on"
+                    } else {
+                        "background gradient off"
+                    },
+                    Color::Gray,
+                );
+            }
             KeyCode::Char('c') => self.copy(),
             KeyCode::Char('x') => self.export(),
             KeyCode::Char('v') => self.verify(),
@@ -267,7 +325,9 @@ impl App {
     }
 
     fn copy(&mut self) {
-        let Some(text) = self.frame().map(|f| f.text.clone()) else { return };
+        let Some(text) = self.frame().map(|f| f.text.clone()) else {
+            return;
+        };
         self.clipboard = Some(text);
         self.flash(Color::Rgb(90, 90, 120));
         self.toast("copied frame to clipboard (OSC 52)", Color::LightGreen);
@@ -275,7 +335,10 @@ impl App {
 
     fn export(&mut self) {
         let Some(f) = self.frame() else { return };
-        let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
         let path = format!("mandelquine-{secs}.{}", self.language().extension());
         let text = f.text.clone();
         match std::fs::write(&path, text) {
@@ -290,9 +353,15 @@ impl App {
     fn verify(&mut self) {
         let Some(f) = self.frame() else { return };
         let (params, text) = (f.params, f.text.clone());
-        let cmd: Vec<String> = self.language().interpreter().iter().map(|s| s.to_string()).collect();
+        let cmd: Vec<String> = self
+            .language()
+            .interpreter()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let ext = self.language().extension();
-        let path = std::env::temp_dir().join(format!("mandelview-verify-{}.{ext}", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mandelview-verify-{}.{ext}", std::process::id()));
         let (tx, rx) = channel();
         std::thread::spawn(move || {
             let result = (|| {
@@ -304,7 +373,11 @@ impl App {
                     .map_err(|e| format!("couldn't run {}: {e}", cmd[0]))?;
                 let _ = std::fs::remove_file(&path);
                 if !out.status.success() {
-                    return Err(String::from_utf8_lossy(&out.stderr).lines().next().unwrap_or("failed").to_string());
+                    return Err(String::from_utf8_lossy(&out.stderr)
+                        .lines()
+                        .next()
+                        .unwrap_or("failed")
+                        .to_string());
                 }
                 if out.stdout != text.as_bytes() {
                     return Err("output differs from the frame".into());
@@ -323,7 +396,11 @@ impl App {
             self.verify_rx = None;
             let current = self.frame().map(|f| f.params) == Some(p);
             if current {
-                self.flash(if r.is_ok() { Color::Rgb(40, 140, 70) } else { Color::Rgb(160, 40, 40) });
+                self.flash(if r.is_ok() {
+                    Color::Rgb(40, 140, 70)
+                } else {
+                    Color::Rgb(160, 40, 40)
+                });
             }
             self.verdict = Some(Verdict::Done(p, r));
         }
@@ -334,6 +411,7 @@ impl App {
 /// dim glow, so copying the panel out of the terminal still yields the
 /// program (backgrounds copy as spaces).
 struct FrameWidget<'a> {
+    background: bool,
     frame: &'a Frame,
     palette: &'a palette::Palette,
     phase: f64,
@@ -350,16 +428,22 @@ impl Widget for FrameWidget<'_> {
                 let v = f.value[j] as f64;
                 let inside = f.value[j] >= 8 * f.params.m;
                 let t = ((v / 4.0).max(1.0).ln() / ln_m).clamp(0.0, 1.0);
-                let Some(cell) = buf.cell_mut((area.x + x as u16, area.y + y as u16)) else { continue };
+                let Some(cell) = buf.cell_mut((area.x + x as u16, area.y + y as u16)) else {
+                    continue;
+                };
                 let p = self.palette;
                 let ph = self.phase;
                 match f.glyphs[j] {
-                    Glyph::Empty if inside => {
+                    Glyph::Empty if inside || !self.background => {
                         cell.set_char(' ').set_fg(Color::Reset).set_bg(BG);
                     }
                     Glyph::Empty => {
                         let glow = 0.06 + 0.5 * t.powf(1.6);
-                        cell.set_char(' ').set_fg(Color::Reset).set_bg(p.color(t * 1.7 + ph, glow, 0.0));
+                        cell.set_char(' ').set_fg(Color::Reset).set_bg(p.color(
+                            t * 1.7 + ph,
+                            glow,
+                            0.0,
+                        ));
                     }
                     Glyph::Code(c) if inside => {
                         let shimmer = ph * 1.5 + (x as f64 * 0.013 + y as f64 * 0.031);
@@ -371,7 +455,11 @@ impl Widget for FrameWidget<'_> {
                     Glyph::Code(c) => {
                         cell.set_char(c)
                             .set_fg(p.color(t * 1.7 + ph, 1.0, 0.15))
-                            .set_bg(p.color(t * 1.7 + ph, 0.18, 0.0))
+                            .set_bg(if self.background {
+                                p.color(t * 1.7 + ph, 0.18, 0.0)
+                            } else {
+                                BG
+                            })
                             .set_style(Style::new().add_modifier(Modifier::BOLD));
                     }
                 }
@@ -383,11 +471,21 @@ impl Widget for FrameWidget<'_> {
 fn centered(area: Rect, w: u16, h: u16) -> Rect {
     let w = w.min(area.width);
     let h = h.min(area.height);
-    Rect::new(area.x + (area.width - w) / 2, area.y + (area.height - h) / 2, w, h)
+    Rect::new(
+        area.x + (area.width - w) / 2,
+        area.y + (area.height - h) / 2,
+        w,
+        h,
+    )
 }
 
 fn panel_layout(area: Rect) -> (Rect, Rect, Rect) {
-    let [panel, status, keys] = Layout::vertical([Constraint::Min(3), Constraint::Length(1), Constraint::Length(1)]).areas(area);
+    let [panel, status, keys] = Layout::vertical([
+        Constraint::Min(3),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .areas(area);
     (panel, status, keys)
 }
 
@@ -405,8 +503,11 @@ fn draw(app: &mut App, f: &mut TuiFrame, elapsed: Duration) {
         Span::styled("quine ", Style::new().fg(accent).bold()),
         Span::styled(format!("· {lang} "), Style::new().fg(Color::Gray)),
     ]);
-    let hint = Line::from(Span::styled(" this picture is a program: run it and it prints itself ", Style::new().fg(Color::DarkGray).italic()))
-        .alignment(Alignment::Right);
+    let hint = Line::from(Span::styled(
+        " this picture is a program: run it and it prints itself ",
+        Style::new().fg(Color::DarkGray).italic(),
+    ))
+    .alignment(Alignment::Right);
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::new().fg(pal.color(app.phase + 0.25, 0.7, 0.0)))
@@ -416,40 +517,80 @@ fn draw(app: &mut App, f: &mut TuiFrame, elapsed: Duration) {
     block.render(panel, f.buffer_mut());
 
     match &app.frame {
-        Some(Ok(frame)) => FrameWidget { frame, palette: pal, phase: app.phase }.render(inner, f.buffer_mut()),
+        Some(Ok(frame)) => FrameWidget {
+            frame,
+            palette: pal,
+            phase: app.phase,
+            background: app.background,
+        }
+        .render(inner, f.buffer_mut()),
         Some(Err(e)) => {
-            let msg = Paragraph::new(format!("can't lay out a frame here: {e}\nmake the terminal bigger, or zoom/pan"))
-                .alignment(Alignment::Center)
-                .fg(Color::LightRed);
+            let msg = Paragraph::new(format!(
+                "can't lay out a frame here: {e}\nmake the terminal bigger, or zoom/pan"
+            ))
+            .alignment(Alignment::Center)
+            .fg(Color::LightRed);
             f.render_widget(msg, centered(inner, 60, 3));
         }
         None => {}
     }
 
     // Status bar.
-    let mut spans = vec![Span::styled(format!(" {lang} "), Style::new().fg(BG).bg(accent).bold()), Span::raw(" ")];
+    let mut spans = vec![
+        Span::styled(format!(" {lang} "), Style::new().fg(BG).bg(accent).bold()),
+        Span::raw(" "),
+    ];
     if let (Some(fr), Some(view)) = (app.frame(), app.view) {
         let zoom = View::classic(fr.params.w, fr.params.h).sc / view.sc;
         let sign = if view.cy < 0.0 { "-" } else { "+" };
         let dim = Style::new().fg(Color::DarkGray);
         spans.extend([
-            Span::styled(format!("{:e} {sign} {:e}i", view.cx, view.cy.abs()), Style::new().fg(Color::White)),
+            Span::styled(
+                format!("{:e} {sign} {:e}i", view.cx, view.cy.abs()),
+                Style::new().fg(Color::White),
+            ),
             Span::styled("  │  ", dim),
             Span::styled(format!("zoom {zoom:.3e}×"), Style::new().fg(Color::Gray)),
             Span::styled("  │  ", dim),
-            Span::styled(format!("{} iter", fr.params.m), Style::new().fg(Color::Gray)),
+            Span::styled(
+                format!("{} iter", fr.params.m),
+                Style::new().fg(Color::Gray),
+            ),
             Span::styled("  │  ", dim),
-            Span::styled(format!("{} chars", fr.code_len), Style::new().fg(Color::Gray)),
+            Span::styled(
+                format!(
+                    "{} chars {}",
+                    fr.code_len,
+                    if fr.params.outside {
+                        "outside"
+                    } else {
+                        "inside"
+                    }
+                ),
+                Style::new().fg(Color::Gray),
+            ),
             Span::styled("  │  ", dim),
         ]);
         let spin = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
         let verdict = match &app.verdict {
             Some(Verdict::Pending(p)) if *p == fr.params => {
                 let i = (app.phase * 400.0) as usize % spin.len();
-                Span::styled(format!("{} verifying with {}", spin[i], app.language().interpreter()[0]), Style::new().fg(Color::Yellow))
+                Span::styled(
+                    format!(
+                        "{} verifying with {}",
+                        spin[i],
+                        app.language().interpreter()[0]
+                    ),
+                    Style::new().fg(Color::Yellow),
+                )
             }
-            Some(Verdict::Done(p, Ok(()))) if *p == fr.params => Span::styled("✓ quine verified", Style::new().fg(Color::LightGreen).bold()),
-            Some(Verdict::Done(p, Err(e))) if *p == fr.params => Span::styled(format!("✗ {e}"), Style::new().fg(Color::LightRed).bold()),
+            Some(Verdict::Done(p, Ok(()))) if *p == fr.params => Span::styled(
+                "✓ quine verified",
+                Style::new().fg(Color::LightGreen).bold(),
+            ),
+            Some(Verdict::Done(p, Err(e))) if *p == fr.params => {
+                Span::styled(format!("✗ {e}"), Style::new().fg(Color::LightRed).bold())
+            }
             _ => Span::styled("V to verify", Style::new().fg(Color::DarkGray)),
         };
         spans.push(verdict);
@@ -463,12 +604,20 @@ fn draw(app: &mut App, f: &mut TuiFrame, elapsed: Duration) {
     f.render_widget(Line::from(spans), status);
 
     let key = |k: &'static str, what: &'static str| {
-        [Span::styled(format!(" {k} "), Style::new().fg(Color::Black).bg(Color::Gray)), Span::styled(format!(" {what}  "), Style::new().fg(Color::Gray))]
+        [
+            Span::styled(
+                format!(" {k} "),
+                Style::new().fg(Color::Black).bg(Color::Gray),
+            ),
+            Span::styled(format!(" {what}  "), Style::new().fg(Color::Gray)),
+        ]
     };
     let keyline: Vec<Span> = [
         key("WASD", "move"),
         key("Q/E", "zoom out/in"),
         key("L", "language"),
+        key("O", "in/outside"),
+        key("B", "background"),
         key("P", "palette"),
         key("␣", "animate"),
         key("C", "copy"),
@@ -485,8 +634,18 @@ fn draw(app: &mut App, f: &mut TuiFrame, elapsed: Duration) {
 
     if !app.started {
         app.started = true;
-        app.fx.add_effect(fx::coalesce((1400, Interpolation::QuadOut)).with_area(inner));
-        app.fx.add_effect(fx::sweep_in(Motion::LeftToRight, 30, 10, BG, (900, Interpolation::QuadOut)).with_area(Rect::new(area.x, status.y, area.width, 2)));
+        app.fx
+            .add_effect(fx::coalesce((1400, Interpolation::QuadOut)).with_area(inner));
+        app.fx.add_effect(
+            fx::sweep_in(
+                Motion::LeftToRight,
+                30,
+                10,
+                BG,
+                (900, Interpolation::QuadOut),
+            )
+            .with_area(Rect::new(area.x, status.y, area.width, 2)),
+        );
     }
     app.fx.process_effects(elapsed.into(), f.buffer_mut(), area);
 
@@ -518,7 +677,7 @@ fn draw(app: &mut App, f: &mut TuiFrame, elapsed: Duration) {
             f.render_stateful_widget(list, r, state);
         }
         Mode::Help => {
-            let r = centered(area, 74, 17);
+            let r = centered(area, 74, 18);
             f.render_widget(Clear, r);
             let text = vec![
                 Line::from("Every frame in the panel is a complete program.".bold()),
@@ -531,14 +690,45 @@ fn draw(app: &mut App, f: &mut TuiFrame, elapsed: Duration) {
                 Line::from("interior from its edge inward, so a large interior shows as an"),
                 Line::from("outline; a small one overflows into the cells nearest the set."),
                 Line::from(""),
-                Line::from(vec!["WASD ".bold(), "pan   ".into(), "Q/E ".bold(), "zoom out/in   ".into(), "R ".bold(), "reset".into()]),
-                Line::from(vec!["L ".bold(), "language   ".into(), "P ".bold(), "palette   ".into(), "Space ".bold(), "colour cycling".into()]),
-                Line::from(vec!["C ".bold(), "copy (OSC 52)   ".into(), "X ".bold(), "save to ./   ".into(), "V ".bold(), "verify".into()]),
+                Line::from(vec![
+                    "WASD ".bold(),
+                    "pan   ".into(),
+                    "Q/E ".bold(),
+                    "zoom out/in   ".into(),
+                    "R ".bold(),
+                    "reset".into(),
+                ]),
+                Line::from(vec![
+                    "O ".bold(),
+                    "code inside/outside the set   ".into(),
+                    "B ".bold(),
+                    "background gradient".into(),
+                ]),
+                Line::from(vec![
+                    "L ".bold(),
+                    "language   ".into(),
+                    "P ".bold(),
+                    "palette   ".into(),
+                    "Space ".bold(),
+                    "colour cycling".into(),
+                ]),
+                Line::from(vec![
+                    "C ".bold(),
+                    "copy (OSC 52)   ".into(),
+                    "X ".bold(),
+                    "save to ./   ".into(),
+                    "V ".bold(),
+                    "verify".into(),
+                ]),
                 Line::from(""),
                 Line::from("any key to close".dark_gray().italic()),
             ];
             let p = Paragraph::new(text).wrap(Wrap { trim: false }).block(
-                Block::bordered().border_type(BorderType::Rounded).title(" how it works ").border_style(Style::new().fg(accent)).bg(BG),
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .title(" how it works ")
+                    .border_style(Style::new().fg(accent))
+                    .bg(BG),
             );
             f.render_widget(p, r);
         }
@@ -550,7 +740,11 @@ fn base64(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
         for i in 0..4 {
             if i <= chunk.len() {
@@ -618,7 +812,7 @@ fn cli(arg: &str) -> std::io::Result<()> {
             let w = args.first().and_then(|s| s.parse().ok()).unwrap_or(110);
             let h = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(48);
             let view = View::classic(w, h);
-            match lang::ruby::Ruby.render(&view.params(w, h)) {
+            match lang::ruby::Ruby.render(&view.params(w, h, false)) {
                 Ok(f) => print!("{}", f.text),
                 Err(e) => eprintln!("{e}"),
             }
@@ -644,33 +838,98 @@ mod tests {
         assert_eq!(base64(b"foobar"), "Zm9vYmFy");
     }
 
+    /// The layout must succeed for any reasonable panel size and view,
+    /// including blank and fully interior ones.
+    #[test]
+    fn layout_succeeds_across_sizes_and_views() {
+        let centres = [
+            (-0.75, 0.0),
+            (5.0, 5.0),
+            (-0.2, 0.0),
+            (-1.75, 0.0),
+            (0.3, 0.5),
+        ];
+        for w in (60..=240).step_by(7) {
+            for h in [20, 33, 48, 70] {
+                for (cx, cy) in centres {
+                    for sc in [0.03, 0.004, 1e-5] {
+                        for outside in [false, true] {
+                            let view = View { cx, cy, sc };
+                            let r = lang::ruby::Ruby.render(&view.params(w, h, outside));
+                            assert!(
+                                r.is_ok(),
+                                "{w}x{h} at {cx},{cy} sc={sc} outside={outside}: {:?}",
+                                r.err()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Runs each frame through ruby and checks it prints itself. Skipped when
     /// ruby isn't on PATH.
     #[test]
     fn ruby_frames_are_fixed_points() {
-        if std::process::Command::new("ruby").arg("-v").output().is_err() {
+        if std::process::Command::new("ruby")
+            .arg("-v")
+            .output()
+            .is_err()
+        {
             eprintln!("ruby not found, skipping");
             return;
         }
-        let mut views = vec![(110, 48, View::classic(110, 48)), (200, 60, View::classic(200, 60)), (60, 20, View { cx: 5.0, cy: 5.0, sc: 0.01 })];
+        let mut views = vec![
+            (110, 48, View::classic(110, 48)),
+            (200, 60, View::classic(200, 60)),
+            (
+                60,
+                20,
+                View {
+                    cx: 5.0,
+                    cy: 5.0,
+                    sc: 0.01,
+                },
+            ),
+        ];
         let mut v = View::classic(120, 40);
         for _ in 0..12 {
             v.zoom(1.0 / ZOOM_STEP);
         }
         v.pan(-0.37, 0.21);
         views.push((120, 40, v));
-        let mut deep = View { cx: -0.743643887037151, cy: 0.13182590420533, sc: 1.0 };
+        let mut deep = View {
+            cx: -0.743643887037151,
+            cy: 0.13182590420533,
+            sc: 1.0,
+        };
         deep.zoom(2e-9);
         views.push((90, 30, deep));
         let dir = std::env::temp_dir();
         for (i, (w, h, view)) in views.into_iter().enumerate() {
-            let frame = lang::ruby::Ruby.render(&view.params(w, h)).expect("layout");
-            let path = dir.join(format!("mandelview-test-{}-{i}.rb", std::process::id()));
-            std::fs::write(&path, &frame.text).unwrap();
-            let out = std::process::Command::new("ruby").arg(&path).output().unwrap();
-            let _ = std::fs::remove_file(&path);
-            assert!(out.status.success(), "frame {i} failed: {}", String::from_utf8_lossy(&out.stderr));
-            assert_eq!(String::from_utf8_lossy(&out.stdout), frame.text, "frame {i} is not a fixed point");
+            for outside in [false, true] {
+                let frame = lang::ruby::Ruby
+                    .render(&view.params(w, h, outside))
+                    .expect("layout");
+                let path = dir.join(format!("mandelview-test-{}-{i}.rb", std::process::id()));
+                std::fs::write(&path, &frame.text).unwrap();
+                let out = std::process::Command::new("ruby")
+                    .arg(&path)
+                    .output()
+                    .unwrap();
+                let _ = std::fs::remove_file(&path);
+                assert!(
+                    out.status.success(),
+                    "frame {i} failed: {}",
+                    String::from_utf8_lossy(&out.stderr)
+                );
+                assert_eq!(
+                    String::from_utf8_lossy(&out.stdout),
+                    frame.text,
+                    "frame {i} is not a fixed point"
+                );
+            }
         }
     }
 }
