@@ -45,28 +45,29 @@ mandelquine.cast`.
 ## Viewer
 
 `mise run viewer` (or `cargo run --release` in `viewer/`) opens a
-[Ratatui](https://ratatui.rs) viewer. It needs a Rust toolchain, plus Ruby
-only for the V check.
+[Ratatui](https://ratatui.rs) viewer. It needs a Rust toolchain. Ruby or Perl
+(5.14 or later) is only needed for the V check.
 
 | Key | |
 | --- | --- |
 | W A S D | pan |
 | Q / E | zoom out / in |
-| L | quine language (Ruby only so far) |
+| L | quine language: Ruby or Perl |
 | O | put the code inside or outside the set |
 | B | background gradient on / off |
 | P, Space | palette, toggle colour cycling |
-| C, X | copy the frame (OSC 52), save it to `./mandelquine-<time>.rb` |
-| V | run the frame with `ruby` and check it prints itself |
+| C, X | copy the frame (OSC 52), save it to `./mandelquine-<time>.rb` or `.pl` |
+| V | run the frame with `ruby` or `perl` and check it prints itself |
 | R, ?, Esc | reset, help, quit |
 
 Every frame is a program that prints itself, not the next zoom step. Its
 first statements are the frame size, iteration count, centre and scale as
 literals, plus a flag for inside/outside placement, so the view is the
 program's own state. The viewer computes the
-layout natively in Rust (`viewer/src/lang/ruby.rs`) using the same
-arithmetic, in the same order, as the Ruby body (`viewer/src/lang/ruby.rb`),
-which is what makes the two agree byte for byte. Scores are integer escape
+layout natively in Rust (`viewer/src/lang/layout.rs`) using the same
+arithmetic, in the same order, as the program bodies
+(`viewer/src/lang/ruby.rb`, `viewer/src/lang/perl.pl`), which is what makes
+them agree byte for byte. Scores are integer escape
 counts over a 2x2 supersample rather than smooth escape time, so no `log`
 is involved and the result doesn't depend on libm.
 
@@ -75,5 +76,9 @@ cells are ranked by distance to the set's edge, so when the interior has more
 cells than the program has characters the code traces the outline and the
 middle is left as whitespace.
 
-A new language is a `Language` impl in `viewer/src/lang/` plus an entry in
-`lang::all()`.
+The Perl frames are `eval($s=q(...)=~y/!-~//cdr)`: `q(...)` holds the code
+broken anywhere by whitespace, and `y/!-~//cdr` returns it with everything
+outside printable ASCII deleted.
+
+A new language is a body that implements the same layout, a `Language` impl
+in `viewer/src/lang/` giving its wrapper, and an entry in `lang::all()`.

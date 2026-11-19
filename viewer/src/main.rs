@@ -42,7 +42,7 @@ fn tidy(x: f64, unit: f64) -> f64 {
     let digits = ((x.abs() / unit).log10().ceil() as i32 + 3).clamp(1, 16) as usize;
     let s = format!("{:.*e}", digits, x);
     let v: f64 = s.parse().unwrap();
-    lang::ruby::literal(v).parse().unwrap()
+    lang::layout::literal(v).parse().unwrap()
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -794,7 +794,7 @@ fn main() -> std::io::Result<()> {
     ratatui::run(run)
 }
 
-/// `mandelview --print [cols rows]` writes the opening frame to stdout, for
+/// `mandelview --print [cols rows [language]]` writes the opening frame to stdout, for
 /// scripts and tests.
 fn cli(arg: &str) -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().skip(2).collect();
@@ -803,14 +803,19 @@ fn cli(arg: &str) -> std::io::Result<()> {
             let w = args.first().and_then(|s| s.parse().ok()).unwrap_or(110);
             let h = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(48);
             let view = View::classic(w, h);
-            match lang::ruby::Ruby.render(&view.params(w, h, true)) {
+            let langs = lang::all();
+            let lang = args
+                .get(2)
+                .and_then(|name| langs.iter().find(|l| l.name().eq_ignore_ascii_case(name)))
+                .unwrap_or(&langs[0]);
+            match lang.render(&view.params(w, h, true)) {
                 Ok(f) => print!("{}", f.text),
                 Err(e) => eprintln!("{e}"),
             }
             Ok(())
         }
         _ => {
-            eprintln!("usage: mandelview [--print [cols rows]]");
+            eprintln!("usage: mandelview [--print [cols rows [language]]]");
             Ok(())
         }
     }
@@ -846,12 +851,15 @@ mod tests {
                     for sc in [0.03, 0.004, 1e-5] {
                         for outside in [false, true] {
                             let view = View { cx, cy, sc };
-                            let r = lang::ruby::Ruby.render(&view.params(w, h, outside));
-                            assert!(
-                                r.is_ok(),
-                                "{w}x{h} at {cx},{cy} sc={sc} outside={outside}: {:?}",
-                                r.err()
-                            );
+                            for lang in lang::all() {
+                                let r = lang.render(&view.params(w, h, outside));
+                                assert!(
+                                    r.is_ok(),
+                                    "{} {w}x{h} at {cx},{cy} sc={sc} outside={outside}: {:?}",
+                                    lang.name(),
+                                    r.err()
+                                );
+                            }
                         }
                     }
                 }
@@ -859,16 +867,22 @@ mod tests {
         }
     }
 
-    /// Runs each frame through ruby and checks it prints itself. Skipped when
-    /// ruby isn't on PATH.
     #[test]
     fn ruby_frames_are_fixed_points() {
-        if std::process::Command::new("ruby")
-            .arg("-v")
-            .output()
-            .is_err()
-        {
-            eprintln!("ruby not found, skipping");
+        frames_are_fixed_points(&lang::ruby::Ruby);
+    }
+
+    #[test]
+    fn perl_frames_are_fixed_points() {
+        frames_are_fixed_points(&lang::perl::Perl);
+    }
+
+    /// Runs frames through the language's interpreter and checks each prints
+    /// itself. Skipped when the interpreter isn't on PATH.
+    fn frames_are_fixed_points(lang: &dyn Language) {
+        let cmd = lang.interpreter()[0];
+        if std::process::Command::new(cmd).arg("-v").output().is_err() {
+            eprintln!("{cmd} not found, skipping");
             return;
         }
         let mut views = vec![
@@ -900,15 +914,14 @@ mod tests {
         let dir = std::env::temp_dir();
         for (i, (w, h, view)) in views.into_iter().enumerate() {
             for outside in [false, true] {
-                let frame = lang::ruby::Ruby
-                    .render(&view.params(w, h, outside))
-                    .expect("layout");
-                let path = dir.join(format!("mandelview-test-{}-{i}.rb", std::process::id()));
+                let frame = lang.render(&view.params(w, h, outside)).expect("layout");
+                let path = dir.join(format!(
+                    "mandelview-test-{}-{i}.{}",
+                    std::process::id(),
+                    lang.extension()
+                ));
                 std::fs::write(&path, &frame.text).unwrap();
-                let out = std::process::Command::new("ruby")
-                    .arg(&path)
-                    .output()
-                    .unwrap();
+                let out = std::process::Command::new(cmd).arg(&path).output().unwrap();
                 let _ = std::fs::remove_file(&path);
                 assert!(
                     out.status.success(),

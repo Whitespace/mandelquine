@@ -1,6 +1,8 @@
 //! Quine back ends. Each one turns a view into program text that, when run by
 //! that language's interpreter, prints exactly that text again.
 
+pub mod layout;
+pub mod perl;
 pub mod ruby;
 
 use crate::fractal::Params;
@@ -29,11 +31,9 @@ pub trait Language: Send + Sync {
     fn extension(&self) -> &'static str;
     /// Command that runs a program file and prints to stdout, e.g. ["ruby"].
     fn interpreter(&self) -> &'static [&'static str];
-    /// Smallest frame the layout can work with.
-    fn min_cells(&self, p: &Params) -> usize;
     fn render(&self, p: &Params) -> Result<Frame, String>;
 }
 
 pub fn all() -> Vec<Box<dyn Language>> {
-    vec![Box::new(ruby::Ruby)]
+    vec![Box::new(ruby::Ruby), Box::new(perl::Perl)]
 }
