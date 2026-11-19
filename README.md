@@ -82,3 +82,20 @@ layout (usually `layout::fill` and `layout::render` with the wrapper's
 unbreakable head and tail, which the body must mirror exactly). Compiled
 languages override `run` to build before running. The tests pick up every
 language in `lang::all()` automatically.
+
+## Languages
+
+Each language the viewer supports has a line-by-line walkthrough of its
+frame in `docs/`.
+
+### Ruby
+
+```ruby
+eval(s=%w( ... )*"")
+```
+
+`%w(...)` splits the code on whitespace and `*""` joins it back, so the
+program can be broken at any character, and `s` ends up holding its own
+source. The body scores each cell, ranks them, picks as many cells as it has
+characters, and prints itself into them. Walkthrough:
+[docs/ruby.md](docs/ruby.md).
