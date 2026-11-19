@@ -99,3 +99,15 @@ program can be broken at any character, and `s` ends up holding its own
 source. The body scores each cell, ranks them, picks as many cells as it has
 characters, and prints itself into them. Walkthrough:
 [docs/ruby.md](docs/ruby.md).
+
+### Perl
+
+```perl
+eval($s=q( ... )=~y/!-~//cdr)
+```
+
+`q(...)` holds the code as a string that can be broken anywhere, and
+`y/!-~//cdr` returns it with everything outside printable ASCII deleted,
+which is the whitespace. `$s` then holds the program's own source and the
+body does the same scoring and layout as the Ruby one. Needs Perl 5.14 or
+later. Walkthrough: [docs/perl.md](docs/perl.md).

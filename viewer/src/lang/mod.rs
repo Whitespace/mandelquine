@@ -10,6 +10,7 @@
 //! however the language needs.
 
 pub mod layout;
+pub mod perl;
 pub mod ruby;
 
 use std::io;
@@ -65,7 +66,7 @@ pub trait Language: Send + Sync {
 }
 
 pub fn all() -> &'static [&'static dyn Language] {
-    &[&ruby::Ruby]
+    &[&ruby::Ruby, &perl::Perl]
 }
 
 /// Whether the language's tool can be started at all.
