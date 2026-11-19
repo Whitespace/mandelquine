@@ -64,7 +64,7 @@ Every frame is a program that prints itself, not the next zoom step. Its
 first statements are the frame size, iteration count, centre and scale as
 literals, plus a flag for inside/outside placement, so the view is the
 program's own state. The viewer computes the
-layout natively in Rust (`viewer/src/lang/ruby.rs`) using the same
+layout natively in Rust (`viewer/src/lang/layout.rs`) using the same
 arithmetic, in the same order, as the Ruby body (`viewer/src/lang/ruby.rb`),
 which is what makes the two agree byte for byte. Scores are integer escape
 counts over a 2x2 supersample rather than smooth escape time, so no `log`
@@ -75,5 +75,10 @@ cells are ranked by distance to the set's edge, so when the interior has more
 cells than the program has characters the code traces the outline and the
 middle is left as whitespace.
 
-A new language is a `Language` impl in `viewer/src/lang/` plus an entry in
-`lang::all()`.
+A new language is a `Language` impl in `viewer/src/lang/<name>.rs` plus an
+entry in `lang::all()`; see the comments in `viewer/src/lang/mod.rs`. The
+impl gives the name, file extension, the tool the V check needs, and the
+layout (usually `layout::fill` and `layout::render` with the wrapper's
+unbreakable head and tail, which the body must mirror exactly). Compiled
+languages override `run` to build before running. The tests pick up every
+language in `lang::all()` automatically.
