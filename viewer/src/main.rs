@@ -439,14 +439,27 @@ impl Widget for FrameWidget<'_> {
                     Glyph::Code(c) if inside => {
                         cell.set_char(c).set_fg(INSIDE_FG).set_bg(BG);
                     }
+                    Glyph::Code(c) if self.background => {
+                        // Same background as the empty cells around it, so
+                        // the gradient is unbroken. Text is white or black,
+                        // whichever contrasts, tinted toward the complement
+                        // of the background's hue.
+                        let glow = 0.06 + 0.5 * t.powf(1.6);
+                        let hue = p.rgb(t * 1.7 + ph);
+                        let lum = (0.2126 * hue[0] + 0.7152 * hue[1] + 0.0722 * hue[2]) * glow;
+                        let (base, tint) = if lum > 0.22 { (0.0, 0.12) } else { (1.0, 0.3) };
+                        let ch = |i: usize| {
+                            ((base * (1.0 - tint) + (1.0 - hue[i]) * tint) * 255.0).round() as u8
+                        };
+                        cell.set_char(c)
+                            .set_fg(Color::Rgb(ch(0), ch(1), ch(2)))
+                            .set_bg(p.color(t * 1.7 + ph, glow, 0.0))
+                            .set_style(Style::new().add_modifier(Modifier::BOLD));
+                    }
                     Glyph::Code(c) => {
                         cell.set_char(c)
                             .set_fg(p.color(t * 1.7 + ph, 1.0, 0.15))
-                            .set_bg(if self.background {
-                                p.color(t * 1.7 + ph, 0.18, 0.0)
-                            } else {
-                                BG
-                            })
+                            .set_bg(BG)
                             .set_style(Style::new().add_modifier(Modifier::BOLD));
                     }
                 }
