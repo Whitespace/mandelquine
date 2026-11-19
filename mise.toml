@@ -1,5 +1,6 @@
 [tools]
 ruby = "3.3"
+rust = "stable"
 
 [tasks.quine]
 description = "Run the quine in a loop, each generation feeding the next"
@@ -12,3 +13,13 @@ run = "ruby src/build.rb"
 [tasks.cast]
 description = "Record one cycle as mandelquine.cast and mandelquine.svg"
 run = "ruby src/cast.rb"
+
+[tasks.viewer]
+description = "Interactive Mandelbrot viewer (Ratatui) where every frame is a quine of itself"
+dir = "viewer"
+run = "cargo run --release"
+
+[tasks."viewer:test"]
+description = "Check viewer frames print themselves when run with ruby"
+dir = "viewer"
+run = "cargo test --release"

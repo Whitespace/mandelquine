@@ -1,0 +1,14 @@
+[package]
+name = "mandelview"
+version = "0.1.0"
+edition = "2024"
+description = "Mandelbrot viewer whose every frame is a quine of itself"
+publish = false
+
+[dependencies]
+ratatui = "0.30"
+tachyonfx = "0.25"
+rayon = "1"
+
+[profile.release]
+debug = false

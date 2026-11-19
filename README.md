@@ -41,3 +41,31 @@ mandelquine.cast`.
 | --- | --- |
 | `mise run build` | Builds `mandelquine.rb` from `src/body.rb`, the program before layout, and verifies that generation 120 equals generation 0. |
 | `mise run cast` | Runs one cycle and writes `mandelquine.cast` and the animated `mandelquine.svg` shown above. |
+
+## Viewer
+
+`mise run viewer` (or `cargo run --release` in `viewer/`) opens a
+[Ratatui](https://ratatui.rs) viewer. It needs a Rust toolchain, plus Ruby
+only for the V check.
+
+| Key | |
+| --- | --- |
+| W A S D | pan |
+| Q / E | zoom out / in |
+| L | quine language (Ruby only so far) |
+| P, Space | palette, toggle colour cycling |
+| C, X | copy the frame (OSC 52), save it to `./mandelquine-<time>.rb` |
+| V | run the frame with `ruby` and check it prints itself |
+| R, ?, Esc | reset, help, quit |
+
+Every frame is a program that prints itself, not the next zoom step. Its
+first statements are the frame size, iteration count, centre and scale as
+literals, so the view is the program's own state. The viewer computes the
+layout natively in Rust (`viewer/src/lang/ruby.rs`) using the same
+arithmetic, in the same order, as the Ruby body (`viewer/src/lang/ruby.rb`),
+which is what makes the two agree byte for byte. Scores are integer escape
+counts over a 2x2 supersample rather than smooth escape time, so no `log`
+is involved and the result doesn't depend on libm.
+
+A new language is a `Language` impl in `viewer/src/lang/` plus an entry in
+`lang::all()`.
