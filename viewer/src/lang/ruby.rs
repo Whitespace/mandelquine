@@ -59,13 +59,33 @@ impl Language for Ruby {
         let tb = t.as_bytes();
         let v = escape_grid(p);
 
-        // o=(0...w*h).sort_by{|j|[-v[j],j]}
+        // City-block distance from each interior cell to the nearest cell
+        // that isn't interior, with a vertical step costing 2 because cells
+        // are about twice as tall as wide. Two chamfer passes, as in ruby.rb.
+        let far = n as i64;
+        let mut d: Vec<i64> = v.iter().map(|&z| if z < 8 * p.m { 0 } else { far }).collect();
+        let (wi, ni) = (w as i64, n as i64);
+        for k in [1i64, -1] {
+            for i in 0..ni {
+                let j = (ni - 1) * (1 - k) / 2 + k * i;
+                if (j - k).div_euclid(wi) == j / wi && d[j as usize] > d[(j - k) as usize] + 1 {
+                    d[j as usize] = d[(j - k) as usize] + 1;
+                }
+                let nb = j - k * wi;
+                if nb >= 0 && nb < ni && d[j as usize] > d[nb as usize] + 2 {
+                    d[j as usize] = d[nb as usize] + 2;
+                }
+            }
+        }
+
+        // o=(0...w*h).sort_by{|j|[-v[j],d[j],j]}: interior first, and within
+        // the interior the cells nearest its edge, so the code draws the
+        // outline and the middle stays empty.
         let mut o: Vec<usize> = (0..n).collect();
-        o.sort_unstable_by_key(|&j| (std::cmp::Reverse(v[j]), j));
+        o.sort_unstable_by_key(|&j| (std::cmp::Reverse(v[j]), d[j], j));
 
         let l = t.len() + HEAD.len() + TAIL.len();
-        let ic = v.iter().filter(|&&z| z >= 8 * p.m).count();
-        let mut pp = l.max(ic);
+        let mut pp = l;
 
         let mut g = vec![false; n];
         let (mut a, mut b) = (0usize, 0usize);
@@ -87,7 +107,10 @@ impl Language for Ruby {
             g.iter().filter(|&&c| c).count()
         };
         let mut c = lay(pp, &mut g, &mut a, &mut b);
-        while pp > ic && c > l {
+        while c > l {
+            if pp <= 1 {
+                return Err("could not place the program".into());
+            }
             pp -= 1;
             c = lay(pp, &mut g, &mut a, &mut b);
         }
@@ -97,43 +120,16 @@ impl Language for Ruby {
                 c += 1;
             }
         }
-        if c < l {
+        if c != l {
             return Err("could not find room for the program".into());
         }
 
-        // Padding comment: '#', then a prefix of the code (repeated) cut where
-        // its parens can still be closed, then ';' filler and the closers.
-        let mut fx = Vec::<u8>::new();
-        if c > l {
-            let room = (c - l - 1) as i64;
-            let (mut fq, mut fd) = (0i64, 0i64);
-            for k in 0..tb.len() * c {
-                let ch = tb[k % tb.len()];
-                let mut dd = 81 - 2 * ch as i64;
-                if dd.abs() > 1 {
-                    dd = 0;
-                }
-                if fq + fd + 1 + dd > room {
-                    break;
-                }
-                fq += 1;
-                fd += dd;
-            }
-            fx.push(b'#');
-            fx.extend((0..fq as usize).map(|k| tb[k % tb.len()]));
-            fx.extend(std::iter::repeat_n(b';', (room - fq - fd) as usize));
-            fx.extend(std::iter::repeat_n(b')', fd as usize));
-        }
-
-        let code_head = HEAD.len() + t.len();
-        let e: Vec<u8> = [HEAD.as_bytes(), tb, &fx, TAIL.as_bytes()].concat();
+        let e: Vec<u8> = [HEAD.as_bytes(), tb, TAIL.as_bytes()].concat();
         let mut glyphs = vec![Glyph::Empty; n];
         let mut k = 0;
         for (j, cell) in g.iter().enumerate() {
-            if *cell && k < e.len() {
-                let ch = e[k] as char;
-                let is_pad = k >= code_head && k < code_head + fx.len();
-                glyphs[j] = if is_pad { Glyph::Pad(ch) } else { Glyph::Code(ch) };
+            if *cell {
+                glyphs[j] = Glyph::Code(e[k] as char);
                 k += 1;
             }
         }
@@ -143,7 +139,7 @@ impl Language for Ruby {
             let row: String = glyphs[y * w..(y + 1) * w]
                 .iter()
                 .map(|gl| match gl {
-                    Glyph::Code(c) | Glyph::Pad(c) => *c,
+                    Glyph::Code(c) => *c,
                     Glyph::Empty => ' ',
                 })
                 .collect();
@@ -151,6 +147,6 @@ impl Language for Ruby {
             text.push('\n');
         }
 
-        Ok(Frame { params: *p, text, glyphs, value: v, code_len: l, pad_len: fx.len() })
+        Ok(Frame { params: *p, text, glyphs, value: v, code_len: l })
     }
 }

@@ -11,9 +11,6 @@ pub enum Glyph {
     Empty,
     /// Part of the executable program.
     Code(char),
-    /// Padding inside a trailing comment, used when the set's interior has
-    /// more cells than the program has characters.
-    Pad(char),
 }
 
 pub struct Frame {
@@ -23,9 +20,8 @@ pub struct Frame {
     pub glyphs: Vec<Glyph>,
     /// Escape-time value per cell, see `fractal::escape_grid`.
     pub value: Vec<u32>,
-    /// Characters of executable code, excluding padding.
+    /// Characters in the program, whitespace excluded.
     pub code_len: usize,
-    pub pad_len: usize,
 }
 
 pub trait Language: Send + Sync {

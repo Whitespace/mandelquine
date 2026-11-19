@@ -354,6 +354,9 @@ impl Widget for FrameWidget<'_> {
                 let p = self.palette;
                 let ph = self.phase;
                 match f.glyphs[j] {
+                    Glyph::Empty if inside => {
+                        cell.set_char(' ').set_fg(Color::Reset).set_bg(BG);
+                    }
                     Glyph::Empty => {
                         let glow = 0.06 + 0.5 * t.powf(1.6);
                         cell.set_char(' ').set_fg(Color::Reset).set_bg(p.color(t * 1.7 + ph, glow, 0.0));
@@ -370,12 +373,6 @@ impl Widget for FrameWidget<'_> {
                             .set_fg(p.color(t * 1.7 + ph, 1.0, 0.15))
                             .set_bg(p.color(t * 1.7 + ph, 0.18, 0.0))
                             .set_style(Style::new().add_modifier(Modifier::BOLD));
-                    }
-                    Glyph::Pad(c) => {
-                        let shimmer = ph * 1.5 + (x as f64 * 0.013 + y as f64 * 0.031);
-                        cell.set_char(c).set_fg(p.color(shimmer + 0.5, 0.6, 0.0)).set_bg(BG).set_style(
-                            Style::new().add_modifier(Modifier::ITALIC).remove_modifier(Modifier::BOLD),
-                        );
                     }
                 }
             }
@@ -442,7 +439,7 @@ fn draw(app: &mut App, f: &mut TuiFrame, elapsed: Duration) {
             Span::styled("  │  ", dim),
             Span::styled(format!("{} iter", fr.params.m), Style::new().fg(Color::Gray)),
             Span::styled("  │  ", dim),
-            Span::styled(format!("{} code + {} pad chars", fr.code_len, fr.pad_len), Style::new().fg(Color::Gray)),
+            Span::styled(format!("{} chars", fr.code_len), Style::new().fg(Color::Gray)),
             Span::styled("  │  ", dim),
         ]);
         let spin = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -530,9 +527,9 @@ fn draw(app: &mut App, f: &mut TuiFrame, elapsed: Duration) {
                 Line::from("view of the Mandelbrot set, lays its own source out in the shape,"),
                 Line::from("and prints the same text, byte for byte. V does that check for you."),
                 Line::from(""),
-                Line::from("Code fills the set's interior first, then the cells nearest to it."),
-                Line::from("When the interior is bigger than the program, the rest is a comment"),
-                Line::from("holding a second copy of the code (shown dim and italic)."),
+                Line::from("The program has a fixed number of characters. They fill the set's"),
+                Line::from("interior from its edge inward, so a large interior shows as an"),
+                Line::from("outline; a small one overflows into the cells nearest the set."),
                 Line::from(""),
                 Line::from(vec!["WASD ".bold(), "pan   ".into(), "Q/E ".bold(), "zoom out/in   ".into(), "R ".bold(), "reset".into()]),
                 Line::from(vec!["L ".bold(), "language   ".into(), "P ".bold(), "palette   ".into(), "Space ".bold(), "colour cycling".into()]),

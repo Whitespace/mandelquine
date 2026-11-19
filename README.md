@@ -67,5 +67,10 @@ which is what makes the two agree byte for byte. Scores are integer escape
 counts over a 2x2 supersample rather than smooth escape time, so no `log`
 is involved and the result doesn't depend on libm.
 
+Unlike `mandelquine.rb`, frames are never padded with a comment. Interior
+cells are ranked by distance to the set's edge, so when the interior has more
+cells than the program has characters the code traces the outline and the
+middle is left as whitespace.
+
 A new language is a `Language` impl in `viewer/src/lang/` plus an entry in
 `lang::all()`.
