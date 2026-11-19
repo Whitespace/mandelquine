@@ -11,6 +11,7 @@
 
 pub mod javascript;
 pub mod layout;
+pub mod lua;
 pub mod perl;
 pub mod ruby;
 
@@ -67,7 +68,7 @@ pub trait Language: Send + Sync {
 }
 
 pub fn all() -> &'static [&'static dyn Language] {
-    &[&ruby::Ruby, &perl::Perl, &javascript::JavaScript]
+    &[&ruby::Ruby, &perl::Perl, &javascript::JavaScript, &lua::Lua]
 }
 
 /// Whether the language's tool can be started at all.

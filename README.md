@@ -125,3 +125,16 @@ no backticks, backslashes or `${`, so the template literal passes it through
 untouched, and no keyword that needs a space after it (`let`, `return`), so
 every variable is a sloppy-mode global and the frame must run as a plain
 CommonJS script. Walkthrough: [docs/javascript.md](docs/javascript.md).
+
+### Lua
+
+```lua
+s=[[ ... ]]load(s:gsub("%s",""))()
+```
+
+The long string `[[...]]` takes the code verbatim, line breaks and all, and
+`gsub("%s","")` strips the whitespace back out before `load` compiles it.
+Lua needs spaces between keywords and names, so the body is written to need
+none: every condition is parenthesised and a `;` follows each `do`, `then`
+and `end`. It does the same scoring, ranking and layout as the Ruby body.
+Needs Lua 5.3 or later. Walkthrough: [docs/lua.md](docs/lua.md).

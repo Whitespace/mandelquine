@@ -1,0 +1,84 @@
+w=W;
+h=H;
+m=M;
+E=SC;
+n=w*h;
+z=math.min;
+v={}d={}o={}g={}
+j=0;
+while(j<n)do;
+  a=0;
+  q=0;
+  while(q<4)do;
+    R=X0+(j%w+q%2*0.5+0.25-w*0.5)*E;
+    I=Y0+(h*0.5-j//w-q//2*0.5-0.25)*2*E;
+    x=0;
+    y=0;
+    i=0;
+    while(i<m)and(x*x+y*y<=4)do;
+      i=i+1;
+      p=x*x-y*y+R;
+      y=2*x*y+I;
+      x=p;
+    end;
+    a=a+((x*x+y*y>4)and(i)or(m*2))
+    q=q+1;
+  end;
+  v[j]=-a*(1-a//(8*m)*U)*n*n*2;
+  d[j]=(a<8*m)and(0)or(n)
+  o[j+1]=j;
+  g[j]=0;
+  j=j+1;
+end;
+k=1;
+while(k>-2)do;
+  i=0;
+  while(i<n)do;
+    j=(n-1)*(1-k)//2+k*i;
+    if((j-k)//w==j//w)then;d[j]=z(d[j],d[j-k]+1)end;
+    d[j]=z(d[j],(d[j-k*w]or(n))+2)
+    i=i+1;
+  end;
+  k=k-2;
+end;
+table.sort(o,function(a,b)return(v[a]+d[a]*n+a<v[b]+d[b]*n+b)end)
+t=s:gsub("%s","")
+l=#t+29;
+f=n;
+e=0;
+i=1;
+while(i<=l)do;
+  j=o[i]
+  g[j]=1;
+  f=z(f,j)
+  e=-z(-e,-j)
+  i=i+1;
+end;
+f=z(f,f-f%w+w-4)
+e=-z(-e,e%w-e-24)
+c=l;
+i=0;
+while(i<25)do;
+  j=f+i%4;
+  c=c+1-z(g[j],1)
+  g[j]=2;
+  j=e-i;
+  c=c+1-z(g[j],1)
+  g[j]=2;
+  i=i+1;
+end;
+i=l;
+while(i>0)do;
+  j=o[i]
+  if(c>l)and(g[j]==1)then;g[j]=0;c=c-1;end;
+  i=i-1;
+end;
+b=""
+j=0;
+while(j<n)do;
+  b=b..((g[j]>0)and"#"or"\32")..((j%w==w-1)and"\n"or"")
+  j=j+1;
+end;
+e="s=[".."["..t.."]"..']load(s:gsub("%s",""))()'
+k=0;
+io.write((b:gsub("\32*\n","\n"):gsub("#",function()k=k+1;return(e:sub(k,k))end)))

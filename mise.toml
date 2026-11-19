@@ -1,5 +1,6 @@
 [tools]
 ruby = "3.3"
+lua = "5.4"
 rust = "stable"
 
 [tasks.quine]
