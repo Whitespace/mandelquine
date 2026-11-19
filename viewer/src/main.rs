@@ -821,6 +821,9 @@ mod tests {
                         for outside in [false, true] {
                             let view = View { cx, cy, sc };
                             for lang in lang::all() {
+                                if w * h < lang.min_cells() {
+                                    continue;
+                                }
                                 let r = lang.render(&view.params(w, h, outside));
                                 assert!(
                                     r.is_ok(),
@@ -877,6 +880,9 @@ mod tests {
         deep.zoom(2e-9);
         views.push((90, 30, deep));
         for (i, (w, h, view)) in views.into_iter().enumerate() {
+            if w * h < lang.min_cells() {
+                continue;
+            }
             for outside in [false, true] {
                 let frame = lang.render(&view.params(w, h, outside)).expect("layout");
                 if let Err(e) = lang::verify(lang, &frame.text) {

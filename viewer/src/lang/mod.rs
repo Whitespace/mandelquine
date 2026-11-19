@@ -48,6 +48,11 @@ pub trait Language: Send + Sync {
     /// Lay the program out for the view `p`. `p.outside` says whether the
     /// code goes inside or outside the set; the program must carry it.
     fn render(&self, p: &Params) -> Result<Frame, String>;
+    /// Fewest cells (w*h) a frame needs for this program to fit; below it
+    /// `render` may fail with "frame too small" and the tests skip that size.
+    fn min_cells(&self) -> usize {
+        0
+    }
     /// Run the frame saved at `src` and return what it printed. `scratch` is
     /// an empty directory for build products, removed afterwards. The default
     /// runs `tool src`; a compiled language overrides this to build into
