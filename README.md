@@ -9,12 +9,15 @@ set. Running it prints another program, shaped like the set zoomed in about
 ## Run it
 
 ```bash
-cp mandelquine.rb ruby.rb
-while ruby ruby.rb | sponge ruby.rb; do clear; cat ruby.rb; done
+./run.sh
 ```
 
-`sponge` is from moreutils (`brew install moreutils`). `mandelquine.cast` is
-an asciicast of the same thing: `asciinema play mandelquine.cast`.
+It copies the quine to `./tmp` and feeds each generation's output back in as
+the next program, forever. Ctrl-C to stop. It needs only bash and Ruby.
+`mise install` gets the pinned Ruby; tested on 3.1, 3.2 and 3.3.
+
+`mandelquine.cast` is an asciicast of one cycle: `asciinema play
+mandelquine.cast`.
 
 ## How it works
 
@@ -34,7 +37,7 @@ an asciicast of the same thing: `asciinema play mandelquine.cast`.
 
 ## Rebuild
 
-`src/body.rb` is the program before layout. `python3 src/build.py` strips its
+`src/body.rb` is the program before layout. `ruby src/build.rb` strips its
 whitespace, runs 61 generations, checks that generation 60 equals generation
-0, and renders the GIF (needs Pillow). `python3 src/mkcast.py mandelquine.rb
-mandelquine.cast` regenerates the cast.
+0, and writes `mandelquine.rb` and `mandelquine.cast`. `zoom.gif` is not
+rebuilt by the script.
