@@ -2,14 +2,14 @@
 
 A Ruby program whose source code is laid out in the shape of the Mandelbrot
 set. Running it prints another program, shaped like the set zoomed in about
-6.5%. After 60 runs the output is byte-identical to the original.
+3.3%. After 120 runs the output is byte-identical to the original.
 
-![zoom](zoom.gif)
+![One full cycle of the quine](mandelquine.svg)
 
 ## Run it
 
 ```bash
-./run.sh
+mise run quine   # or ./run.sh
 ```
 
 It copies the quine to `./tmp` and feeds each generation's output back in as
@@ -31,13 +31,13 @@ mandelquine.cast`.
   comment holding a second copy of the code, cut where its parentheses can
   be closed so `%w(` still terminates.
 - The zoom is about the fixed point of the affine map that sends the whole
-  set onto the period-3 minibrot on the real axis, scaled so generation 60
+  set onto the period-3 minibrot on the real axis, scaled so generation 120
   frames the minibrot the way generation 0 frames the whole set. The counter
-  is `(k+1)%60`, which is what makes the cycle close exactly.
+  is `(k+1)%120`, which is what makes the cycle close exactly.
 
 ## Rebuild
 
-`src/body.rb` is the program before layout. `ruby src/build.rb` strips its
-whitespace, runs 61 generations, checks that generation 60 equals generation
-0, and writes `mandelquine.rb` and `mandelquine.cast`. `zoom.gif` is not
-rebuilt by the script.
+| Task | Does |
+| --- | --- |
+| `mise run build` | Builds `mandelquine.rb` from `src/body.rb`, the program before layout, and verifies that generation 120 equals generation 0. |
+| `mise run cast` | Runs one cycle and writes `mandelquine.cast` and the animated `mandelquine.svg` shown above. |
