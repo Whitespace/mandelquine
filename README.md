@@ -111,3 +111,17 @@ eval($s=q( ... )=~y/!-~//cdr)
 which is the whitespace. `$s` then holds the program's own source and the
 body does the same scoring and layout as the Ruby one. Needs Perl 5.14 or
 later. Walkthrough: [docs/perl.md](docs/perl.md).
+
+### JavaScript
+
+```js
+eval(s=`...`.replace(/[^!-~]/g,""))
+```
+
+Run with `node`. The template literal holds the code broken anywhere by
+whitespace, and `replace` deletes everything outside printable ASCII, which
+is exactly the whitespace; `s` keeps the stripped source. The body contains
+no backticks, backslashes or `${`, so the template literal passes it through
+untouched, and no keyword that needs a space after it (`let`, `return`), so
+every variable is a sloppy-mode global and the frame must run as a plain
+CommonJS script. Walkthrough: [docs/javascript.md](docs/javascript.md).

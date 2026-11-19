@@ -9,6 +9,7 @@
 //! mirror `layout.rs` exactly. Otherwise `render` may lay the frame out
 //! however the language needs.
 
+pub mod javascript;
 pub mod layout;
 pub mod perl;
 pub mod ruby;
@@ -66,7 +67,7 @@ pub trait Language: Send + Sync {
 }
 
 pub fn all() -> &'static [&'static dyn Language] {
-    &[&ruby::Ruby, &perl::Perl]
+    &[&ruby::Ruby, &perl::Perl, &javascript::JavaScript]
 }
 
 /// Whether the language's tool can be started at all.
